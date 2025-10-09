@@ -1,0 +1,1 @@
+web: gunicorn live_predictor_plotly:server
