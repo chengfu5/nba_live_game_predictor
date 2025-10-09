@@ -6,7 +6,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import joblib
 from nba_api.stats.endpoints import scoreboardv2
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import re
 
@@ -61,28 +61,50 @@ def find_games_on_date(date_str, find_finished_games=False):
         print(f"Error fetching games for {date_str}: {e}")
         return []
 
+
+# --- MODIFIED: The find_games_for_dropdown function now handles the "NBA Day" correctly ---
+def find_games_for_dropdown():
+    """Finds games for the current "NBA Day" or falls back to a historical date."""
+    # The "NBA Day" runs until the early morning hours (e.g., 6 AM ET).
+    # If the current time is before 6 AM, we should still look at yesterday's schedule
+    # to catch late West Coast games.
+    now = datetime.now()
+    if now.hour < 6:
+        target_date = now - timedelta(days=1)
+    else:
+        target_date = now
+    
+    target_date_str = target_date.strftime('%Y-%m-%d')
+    print(f"Fetching games for NBA day: {target_date_str}")
+
+    games = find_games_on_date(target_date_str)
+    
+    if not games:
+        print(f"No games found for {target_date_str}, using fallback date.")
+        fallback_date = '2024-04-10'
+        games = find_games_on_date(fallback_date, find_finished_games=True)
+        if not games:
+            return [{'label': 'No games found', 'value': 'NONE'}]
+    
+    return [{'label': f"{game['VISITOR_TEAM_ABBREVIATION']} @ {game['HOME_TEAM_ABBREVIATION']} ({game['GAME_STATUS_TEXT']})", 'value': game['GAME_ID']} for game in games]
+
+
 # --- 3. Initial Data Fetch for Layout ---
-GAMES_TODAY = find_games_on_date(datetime.now().strftime('%Y-%m-%d'))
+GAMES_TODAY = find_games_for_dropdown() # This now uses the new logic
 if not GAMES_TODAY:
     print("No games today, using fallback date for initial layout.")
     GAMES_TODAY = find_games_on_date('2024-04-10', find_finished_games=True)
 
-GAME_INFO_MAP = {game['GAME_ID']: {
-    'home': game['HOME_TEAM_ABBREVIATION'],
-    'away': game['VISITOR_TEAM_ABBREVIATION']
-} for game in GAMES_TODAY}
+GAME_INFO_MAP = {game['value']: { # Note: 'value' is the game_id from the dropdown options
+    'home': game['label'].split(' @ ')[1].split(' (')[0],
+    'away': game['label'].split(' @ ')[0]
+} for game in GAMES_TODAY if game['value'] != 'NONE'}
 
-game_tabs = []
-for game in GAMES_TODAY:
-    status_text = game['GAME_STATUS_TEXT']
-    label_text = f"{game['VISITOR_TEAM_ABBREVIATION']} @ {game['HOME_TEAM_ABBREVIATION']}"
-    if 'PM' in status_text or 'AM' in status_text:
-        label_text += f" ({status_text})"
-    game_tabs.append(dcc.Tab(
-        label=label_text, value=game['GAME_ID'],
-        style={'padding': '1rem', 'fontWeight': '500'},
-        selected_style={'padding': '1rem', 'fontWeight': 'bold', 'borderBottom': '3px solid #3B82F6'}
-    ))
+game_tabs = [dcc.Tab(
+    label=game['label'], value=game['value'],
+    style={'padding': '1rem', 'fontWeight': '500'},
+    selected_style={'padding': '1rem', 'fontWeight': 'bold', 'borderBottom': '3px solid #3B82F6'}
+) for game in GAMES_TODAY]
 
 
 # --- 4. Define the App Layout ---
@@ -90,7 +112,7 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
     html.H1("Live NBA Scoreboard", style={'textAlign': 'center', 'color': '#111827'}),
     html.P("Today's games", style={'textAlign': 'center', 'color': '#4B5563', 'marginBottom': '2rem'}),
     
-    dcc.Tabs(id="game-tabs", value=GAMES_TODAY[0]['GAME_ID'] if GAMES_TODAY else None, children=game_tabs, style={'maxWidth': '1200px', 'margin': '0 auto'}),
+    dcc.Tabs(id="game-tabs", value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None, children=game_tabs, style={'maxWidth': '1200px', 'margin': '0 auto'}),
     
     # --- MODIFIED: Wrap plots in a styled card ---
     html.Div(style={'backgroundColor': 'white', 'borderRadius': '1.5rem', 'padding': '2rem', 'maxWidth': '1200px', 'margin': '2rem auto', 'boxShadow': '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}, children=[
