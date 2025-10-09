@@ -1,0 +1,11 @@
+dash
+pandas
+scikit-learn
+nba_api
+requests
+plotly
+xgboost
+gunicorn
+joblib
+re 
+datetime
