@@ -208,14 +208,10 @@ def update_live_charts(n, game_id):
 
         return win_prob_fig, score_trend_fig, win_prob_text, score_text
     except Exception as e:
-        error_fig = go.Figure().update_layout(title=f"An error occurred: {e}")
-        return error_fig, error_fig, "Error", "Error"
+        error_fig = go.Figure().update_layout(title="Game not started")
+        return error_fig, error_fig, "Game not started", "Game not started"
 
 # --- 6. Run the App ---
 if __name__ == '__main__':
     app.run(debug=True)
 
-
-
-
-####### http://127.0.0.1:8050/ ####### This is the local address to access the Dash app.
