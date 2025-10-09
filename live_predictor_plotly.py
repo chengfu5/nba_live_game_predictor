@@ -150,7 +150,7 @@ def update_live_charts(n, game_id):
 
         favored_team, favored_prob = (home_team, home_win_prob) if home_win_prob >= 0.5 else (away_team, 1 - home_win_prob)
         win_prob_text = f"{favored_team} Win Probability: {favored_prob:.1%}"
-        score_text = f"FINAL: {away_team} {away_score} @ {home_score} {home_team}" if is_game_over else f"{away_team} {away_score} - {home_score} {home_team}"
+        score_text = f"FINAL: {away_team} {away_score} @ {home_score} {home_team}" if is_game_over else f"{away_team} {away_score} @ {home_score} {home_team}"
 
         period_end_indices = df.groupby('PERIOD').tail(1).index.tolist()
         period_end_plays = [i + 1 for i in period_end_indices]
