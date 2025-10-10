@@ -79,7 +79,7 @@ def format_clock_string(time_str):
         except (AttributeError, ValueError):
             return "00:00"
     elif ':' in time_str:
-        return time_str # Already in the correct format
+        return time_str 
     else:
         return "00:00"
 
