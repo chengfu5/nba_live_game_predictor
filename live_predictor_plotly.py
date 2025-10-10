@@ -61,6 +61,9 @@ def find_games_on_date(date_str, find_finished_games=False):
         print(f"Error fetching games for {date_str}: {e}")
         return []
 
+def get_team_logo_url(team_tricode):
+    """Constructs the URL for a team's logo based on its tricode."""
+    return f"https://cdn.nba.com/logos/nba/latest/svg/{team_tricode}.svg"
 
 # --- NEW: Function to format the clock string for display ---
 def format_clock_string(time_str):
@@ -106,10 +109,15 @@ def find_games_for_dropdown():
         fallback_date = '2024-04-10'
         games = find_games_on_date(fallback_date, find_finished_games=True)
         if not games:
-            return [{'label': 'No games found', 'value': 'NONE'}]
+            return [{'label': 'No games found', 'value': 'NONE', 'home_tricode': 'N/A', 'away_tricode': 'N/A', 'status': ''}]
     
-    return [{'label': f"{game['VISITOR_TEAM_ABBREVIATION']} @ {game['HOME_TEAM_ABBREVIATION']} ({game['GAME_STATUS_TEXT']})", 'value': game['GAME_ID']} for game in games]
-
+    return [{
+        'label': f"{game['VISITOR_TEAM_ABBREVIATION']} @ {game['HOME_TEAM_ABBREVIATION']} ({game['GAME_STATUS_TEXT']})",
+        'value': game['GAME_ID'],
+        'home_tricode': game['HOME_TEAM_ABBREVIATION'],
+        'away_tricode': game['VISITOR_TEAM_ABBREVIATION'],
+        'status': game['GAME_STATUS_TEXT']
+    } for game in games]
 
 # --- 3. Initial Data Fetch for Layout ---
 GAMES_TODAY = find_games_for_dropdown() # This now uses the new logic
@@ -247,4 +255,5 @@ def update_live_charts(n, game_id):
 # --- 6. Run the App ---
 if __name__ == '__main__':
     app.run(debug=True)
+
 
