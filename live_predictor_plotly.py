@@ -62,8 +62,11 @@ def find_games_on_date(date_str, find_finished_games=False):
         return []
 
 def get_team_logo_url(team_tricode):
-    """Constructs the URL for a team's logo based on its tricode."""
-    return f"https://cdn.nba.com/logos/nba/latest/svg/{team_tricode}.svg"
+    """Constructs a more reliable URL for a team's logo."""
+    # This URL format from stats.nba.com is generally more stable.
+    if team_tricode in ['HOME', 'AWAY', 'N/A']: # Handle placeholder tricodes
+        return "" # Return an empty string to avoid a broken image
+    return f"https://stats.nba.com/media/img/teams/logos/{team_tricode}_logo.svg"
 
 # --- NEW: Function to format the clock string for display ---
 def format_clock_string(time_str):
