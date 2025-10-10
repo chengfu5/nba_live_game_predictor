@@ -163,8 +163,8 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
     [Output('win-prob-chart', 'figure'),
      Output('score-trend-chart', 'figure'),
      Output('win-prob-display', 'children'),
-     Output('score-display', 'children')],
-     Output('commentary-display', 'children'), # New output for commentary
+     Output('score-display', 'children'),
+     Output('commentary-display', 'children')],
     [Input('interval-component', 'n_intervals'),
      Input('game-tabs', 'value')]
 )
