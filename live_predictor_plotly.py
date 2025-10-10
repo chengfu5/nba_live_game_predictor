@@ -138,9 +138,10 @@ game_tabs = [dcc.Tab(
 
 
 # --- 4. Define the App Layout ---
+todays_date_str = datetime.now().strftime('%B %d, %Y')
 app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor': "#a4c1e8", 'padding': '2rem', 'minHeight': '100vh'}, children=[
     html.H1("Live NBA Scoreboard", style={'textAlign': 'center', 'color': '#111827'}),
-    html.P("Today's games", style={'textAlign': 'center', 'color': '#4B5563', 'marginBottom': '2rem'}),
+    html.P(f"Today's games: {todays_date_str}", style={'textAlign': 'center', 'color': '#4B5563', 'marginBottom': '2rem'}),
     
     dcc.Tabs(id="game-tabs", value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None, children=game_tabs, style={'maxWidth': '1200px', 'margin': '0 auto'}),
     
