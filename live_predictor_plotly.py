@@ -141,6 +141,9 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
         html.Div(id='win-prob-display', style={'textAlign': 'center', 'fontSize': '2.25rem', 'fontWeight': 'bold', 'color': '#1E40AF'}),
         dcc.Graph(id='win-prob-chart'),
         html.Div(id='score-display', style={'textAlign': 'center', 'fontSize': '2.25rem', 'fontWeight': 'bold', 'marginTop': '2rem', 'color': '#1F2937'}),
+        # --- NEW: Div to display the live commentary ---
+        html.Div(id='commentary-display', style={'textAlign': 'center', 'fontSize': '1.1rem', 'color': '#4B5563', 'marginTop': '0.5rem', 'minHeight': '2rem'}),
+
         dcc.Graph(id='score-trend-chart'),
     ]),
     
@@ -153,6 +156,7 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
      Output('score-trend-chart', 'figure'),
      Output('win-prob-display', 'children'),
      Output('score-display', 'children')],
+     Output('commentary-display', 'children'), # New output for commentary
     [Input('interval-component', 'n_intervals'),
      Input('game-tabs', 'value')]
 )
@@ -187,10 +191,13 @@ def update_live_charts(n, game_id):
         home_score, away_score = last_play['HOME_SCORE'], last_play['AWAY_SCORE']
         home_win_prob = prob_history[-1]
         
+        # --- NEW: Get commentary from the 'description' field ---
+        commentary_text = last_play.get('description', '')
         is_game_over = last_play.get('actionType') == 'game' and last_play.get('subType') == 'end'
         if is_game_over:
             home_win_prob = 1.0 if home_score > away_score else 0.0
             prob_history[-1] = home_win_prob
+            commentary_text = "Final"
 
         favored_team, favored_prob = (home_team, home_win_prob) if home_win_prob >= 0.5 else (away_team, 1 - home_win_prob)
         win_prob_text = f"{favored_team} Win Probability: {favored_prob:.1%}"
@@ -232,10 +239,10 @@ def update_live_charts(n, game_id):
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plot_font_color
         )
 
-        return win_prob_fig, score_trend_fig, win_prob_text, score_text
+        return win_prob_fig, score_trend_fig, win_prob_text, score_text, commentary_text
     except Exception as e:
         error_fig = go.Figure().update_layout(title="Game not started")
-        return error_fig, error_fig, "Game not started", "Game not started"
+        return error_fig, error_fig, "Game not started", "Game not started", "Game not started"
 
 # --- 6. Run the App ---
 if __name__ == '__main__':
