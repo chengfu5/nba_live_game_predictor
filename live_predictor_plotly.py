@@ -62,6 +62,28 @@ def find_games_on_date(date_str, find_finished_games=False):
         return []
 
 
+# --- NEW: Function to format the clock string for display ---
+def format_clock_string(time_str):
+    """Converts a time string ('PT05M32.0S' or '5:32') to a simple MM:SS format."""
+    if pd.isna(time_str) or not isinstance(time_str, str):
+        return "00:00"
+    
+    if time_str.startswith('PT'):
+        try:
+            mins_match = re.search(r'(\d+)M', time_str)
+            secs_match = re.search(r'(\d+)\.?\d*S', time_str)
+            mins = int(mins_match.group(1)) if mins_match else 0
+            secs = int(secs_match.group(1)) if secs_match else 0
+            # Format seconds with a leading zero if needed
+            return f"{mins}:{secs:02d}"
+        except (AttributeError, ValueError):
+            return "00:00"
+    elif ':' in time_str:
+        return time_str # Already in the correct format
+    else:
+        return "00:00"
+
+
 # --- MODIFIED: The find_games_for_dropdown function now handles the "NBA Day" correctly ---
 def find_games_for_dropdown():
     """Finds games for the current "NBA Day" or falls back to a historical date."""
@@ -172,12 +194,16 @@ def update_live_charts(n, game_id):
 
         favored_team, favored_prob = (home_team, home_win_prob) if home_win_prob >= 0.5 else (away_team, 1 - home_win_prob)
         win_prob_text = f"{favored_team} Win Probability: {favored_prob:.1%}"
-        score_text = f"FINAL: {away_team} {away_score} @ {home_score} {home_team}" if is_game_over else f"{away_team} {away_score} @ {home_score} {home_team} Time:  {last_play['clock']} - Period {last_play['PERIOD']}"
+        
+        # --- MODIFIED: Use the new helper function to format the clock string ---
+        simple_clock = format_clock_string(last_play['clock'])
+        time_display = f" {simple_clock} - Q{last_play['PERIOD']}"
+        score_text = f"FINAL: {away_team} {away_score} @ {home_score} {home_team}" if is_game_over else f"{away_team} {away_score} @ {home_score} {home_team} | Time: {time_display}"
 
         period_end_indices = df.groupby('PERIOD').tail(1).index.tolist()
         period_end_plays = [i + 1 for i in period_end_indices]
         period_numbers = df.loc[period_end_indices, 'PERIOD'].tolist()
-        tick_labels = [f"End Q{p}" if p <= 4 else f"End OT{p-4}" for p in period_numbers]
+        tick_labels = [f"Q{p}" if p <= 4 else f"OT{p-4}" for p in period_numbers]
         shapes = [dict(type='line', xref='x', yref='paper', x0=p, y0=0, x1=p, y1=1, line=dict(color='lightgrey', width=1, dash='dash')) for p in period_end_plays[:-1]]
 
         play_numbers = list(range(1, len(prob_history) + 1))
