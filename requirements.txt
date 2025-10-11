@@ -7,5 +7,3 @@ plotly
 xgboost
 gunicorn
 joblib
-re 
-datetime
