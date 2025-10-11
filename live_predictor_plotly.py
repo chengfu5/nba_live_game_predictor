@@ -1,5 +1,5 @@
 import dash
-from dash import dcc, html
+from dash import dcc, html, clientside_callback
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -144,12 +144,11 @@ game_tabs = [dcc.Tab(
 todays_date_str = datetime.now().strftime('%B %d, %Y')
 app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor': "#a4c1e8", 'padding': '2rem', 'minHeight': '100vh'}, children=[
     html.H1("Live NBA Scoreboard", style={'textAlign': 'center', 'color': '#111827'}),
-    html.P(f"Today's games: {todays_date_str}", style={'textAlign': 'center', 'color': '#4B5563', 'marginBottom': '2rem'}),
-    
-        dcc.Tabs(
-        id="game-tabs", 
-        value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None, 
-        children=game_tabs, 
+    html.P(id='subtitle-date', style={'textAlign': 'center', 'color': '#4B5563', 'marginBottom': '2rem'}),
+    dcc.Tabs(
+        id="game-tabs",
+        value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None,
+        children=game_tabs,
         style={'maxWidth': '1200px', 'margin': '0 auto'},
         content_style={'display': 'flex', 'flexWrap': 'nowrap', 'overflowX': 'auto'}
     ),
@@ -169,6 +168,19 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
 ])
 
 # --- 5. Define the Callback for Live Updates ---
+clientside_callback(
+    """
+    function(n) {
+        const today = new Date();
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        const dateString = today.toLocaleDateString('en-US', options);
+        return `Today's games: ${dateString}`;
+    }
+    """,
+    Output('subtitle-date', 'children'),
+    Input('game-tabs', 'value') 
+)
+
 @app.callback(
     [Output('win-prob-chart', 'figure'),
      Output('score-trend-chart', 'figure'),
