@@ -146,7 +146,13 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
     html.H1("Live NBA Scoreboard", style={'textAlign': 'center', 'color': '#111827'}),
     html.P(f"Today's games: {todays_date_str}", style={'textAlign': 'center', 'color': '#4B5563', 'marginBottom': '2rem'}),
     
-    dcc.Tabs(id="game-tabs", value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None, children=game_tabs, style={'maxWidth': '1200px', 'margin': '0 auto'}),
+        dcc.Tabs(
+        id="game-tabs", 
+        value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None, 
+        children=game_tabs, 
+        style={'maxWidth': '1200px', 'margin': '0 auto'},
+        content_style={'display': 'flex', 'flexWrap': 'nowrap', 'overflowX': 'auto'}
+    ),
     
     # --- MODIFIED: Wrap plots in a styled card ---
     html.Div(style={'backgroundColor': 'white', 'borderRadius': '1.5rem', 'padding': '2rem', 'maxWidth': '1200px', 'margin': '2rem auto', 'boxShadow': '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}, children=[
