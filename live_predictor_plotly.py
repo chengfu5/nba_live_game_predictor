@@ -40,23 +40,23 @@ def find_games_on_date(date_str, find_finished_games=False):
     """Fetches game data from the NBA API and returns a list of game dicts."""
     try:
         board = scoreboardv2.ScoreboardV2(game_date=date_str, timeout=30)
-        data_frames = board.get_data_frames()
-        games, line_score = data_frames[0], data_frames[1]
+        games_df = board.get_data_frames()[0]
         
-        if games.empty:
+        if games_df.empty:
             return []
 
-        team_abbrevs = line_score[['GAME_ID', 'TEAM_ID', 'TEAM_ABBREVIATION']].drop_duplicates()
-        merged_df = pd.merge(games, team_abbrevs, left_on=['GAME_ID', 'HOME_TEAM_ID'], right_on=['GAME_ID', 'TEAM_ID'])
-        merged_df.rename(columns={'TEAM_ABBREVIATION': 'HOME_TEAM_ABBREVIATION'}, inplace=True)
-        final_merged_df = pd.merge(merged_df, team_abbrevs, left_on=['GAME_ID', 'VISITOR_TEAM_ID'], right_on=['GAME_ID', 'TEAM_ID'])
-        final_merged_df.rename(columns={'TEAM_ABBREVIATION': 'VISITOR_TEAM_ABBREVIATION'}, inplace=True)
-
+        # The abbreviations are often directly available in the main games_df
+        # This is more reliable than merging, especially for scheduled games.
+        if 'HOME_TEAM_ABBREVIATION' not in games_df.columns:
+            # If the primary columns are missing, attempt to get them from the GAMECODE
+            games_df[['VISITOR_TEAM_ABBREVIATION', 'HOME_TEAM_ABBREVIATION']] = games_df['GAMECODE'].str.split('/', expand=True)[1].str.findall(r'[A-Z]{3}').tolist()
 
         if find_finished_games:
-            return final_merged_df[final_merged_df['GAME_STATUS_TEXT'].str.contains('Final')].to_dict('records')
+            target_games = games_df[games_df['GAME_STATUS_TEXT'].str.contains('Final')]
         else:
-            return final_merged_df[~final_merged_df['GAME_STATUS_TEXT'].str.contains('Final')].to_dict('records')
+            target_games = games_df[~games_df['GAME_STATUS_TEXT'].str.contains('Final')]
+            
+        return target_games.to_dict('records')
     except Exception as e:
         print(f"Error fetching games for {date_str}: {e}")
         return []
