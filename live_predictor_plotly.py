@@ -40,21 +40,48 @@ def find_games_on_date(date_str, find_finished_games=False):
     """Fetches game data from the NBA API and returns a list of game dicts."""
     try:
         board = scoreboardv2.ScoreboardV2(game_date=date_str, timeout=30)
-        games_df = board.get_data_frames()[0]
+        data_frames = board.get_data_frames()
+        games_df = data_frames[0]
         
         if games_df.empty:
             return []
 
+        final_df = games_df.copy()
+
+        # Defensively check for and merge standings data
+        standings_available = False
+        if len(data_frames) > 5:
+            east_standings = data_frames[4]
+            west_standings = data_frames[5]
+            # Check if the expected columns exist before proceeding
+            if 'WINS' in east_standings.columns and 'WINS' in west_standings.columns:
+                standings_available = True
+        
+        if standings_available:
+            all_standings = pd.concat([east_standings[['TEAM_ID', 'WINS', 'LOSSES']], west_standings[['TEAM_ID', 'WINS', 'LOSSES']]])
+            # Merge records for the home team
+            final_df = pd.merge(final_df, all_standings, left_on='HOME_TEAM_ID', right_on='TEAM_ID', how='left')
+            final_df.rename(columns={'WINS': 'HOME_WINS', 'LOSSES': 'HOME_LOSSES'}, inplace=True)
+            # Merge records for the visitor team
+            final_df = pd.merge(final_df, all_standings, left_on='VISITOR_TEAM_ID', right_on='TEAM_ID', how='left')
+            final_df.rename(columns={'WINS': 'AWAY_WINS', 'LOSSES': 'AWAY_LOSSES'}, inplace=True)
+
+        # Fill missing records with 0 (for start of season) and convert to int
+        for col in ['HOME_WINS', 'HOME_LOSSES', 'AWAY_WINS', 'AWAY_LOSSES']:
+            if col not in final_df.columns:
+                final_df[col] = 0
+            final_df[col] = final_df[col].fillna(0).astype(int)
+
         # The abbreviations are often directly available in the main games_df
         # This is more reliable than merging, especially for scheduled games.
-        if 'HOME_TEAM_ABBREVIATION' not in games_df.columns:
-            # If the primary columns are missing, attempt to get them from the GAMECODE
-            games_df[['VISITOR_TEAM_ABBREVIATION', 'HOME_TEAM_ABBREVIATION']] = games_df['GAMECODE'].str.split('/', expand=True)[1].str.findall(r'[A-Z]{3}').tolist()
+        # Get abbreviations as a fallback
+        if 'HOME_TEAM_ABBREVIATION' not in final_df.columns:
+            final_df[['VISITOR_TEAM_ABBREVIATION', 'HOME_TEAM_ABBREVIATION']] = final_df['GAMECODE'].str.split('/', expand=True)[1].str.findall(r'[A-Z]{3}').tolist()
 
         if find_finished_games:
-            target_games = games_df[games_df['GAME_STATUS_TEXT'].str.contains('Final')]
+            target_games = final_df[final_df['GAME_STATUS_TEXT'].str.contains('Final')]
         else:
-            target_games = games_df[~games_df['GAME_STATUS_TEXT'].str.contains('Final')]
+            target_games = final_df[~final_df['GAME_STATUS_TEXT'].str.contains('Final')]
             
         return target_games.to_dict('records')
     except Exception as e:
@@ -112,14 +139,18 @@ def find_games_for_dropdown():
         fallback_date = '2024-04-10'
         games = find_games_on_date(fallback_date, find_finished_games=True)
         if not games:
-            return [{'label': 'No games found', 'value': 'NONE', 'home_tricode': 'N/A', 'away_tricode': 'N/A', 'status': ''}]
+            return [{'label': 'No games found', 'value': 'NONE', 'home_tricode': 'N/A', 'away_tricode': 'N/A', 'status': '', 'home_wins': 0, 'home_losses': 0, 'away_wins': 0, 'away_losses': 0}]
     
     return [{
         'label': f"{game['VISITOR_TEAM_ABBREVIATION']} @ {game['HOME_TEAM_ABBREVIATION']} ({game['GAME_STATUS_TEXT']})",
         'value': game['GAME_ID'],
         'home_tricode': game['HOME_TEAM_ABBREVIATION'],
         'away_tricode': game['VISITOR_TEAM_ABBREVIATION'],
-        'status': game['GAME_STATUS_TEXT']
+        'status': game['GAME_STATUS_TEXT'],
+        'home_wins': game.get('HOME_WINS', 0),
+        'home_losses': game.get('HOME_LOSSES', 0),
+        'away_wins': game.get('AWAY_WINS', 0),
+        'away_losses': game.get('AWAY_LOSSES', 0),
     } for game in games]
 
 # --- 3. Initial Data Fetch for Layout ---
@@ -133,11 +164,36 @@ GAME_INFO_MAP = {game['value']: { # Note: 'value' is the game_id from the dropdo
     'away': game['label'].split(' @ ')[0]
 } for game in GAMES_TODAY if game['value'] != 'NONE'}
 
-game_tabs = [dcc.Tab(
-    label=game['label'], value=game['value'],
-    style={'padding': '1rem', 'fontWeight': '500'},
-    selected_style={'padding': '1rem', 'fontWeight': 'bold', 'borderBottom': '3px solid #3B82F6'}
-) for game in GAMES_TODAY]
+# --- MODIFIED: Construct the tab labels with team records ---
+game_tabs = []
+for game in GAMES_TODAY:
+    if game['value'] == 'NONE':
+        game_tabs.append(dcc.Tab(label="No Games Found", value="NONE"))
+        continue
+    
+    # Conditionally create the record string if the team has played
+    away_record = ""
+    if game['away_wins'] > 0 or game['away_losses'] > 0:
+        away_record = f" ({game['away_wins']}-{game['away_losses']})"
+    else:
+        away_record = " (0-0)"
+
+    home_record = ""
+    if game['home_wins'] > 0 or game['home_losses'] > 0:
+        home_record = f" ({game['home_wins']}-{game['home_losses']})"
+    else:
+        home_record = " (0-0)"
+
+    label_text = f"{game['away_tricode']}{away_record} @ {game['home_tricode']}{home_record}"
+    
+    status_text = game['status']
+    if ':' in status_text:
+        label_text += f" ({status_text})"
+        
+    game_tabs.append(dcc.Tab(label=label_text, 
+                             value=game['value'], 
+                             style={'padding': '1rem', 'fontWeight': '500'}, 
+                             selected_style={'padding': '1rem', 'fontWeight': 'bold', 'borderBottom': '3px solid #3B82F6'}))
 
 
 # --- 4. Define the App Layout ---
