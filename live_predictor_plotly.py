@@ -185,15 +185,16 @@ for game in GAMES_TODAY:
         home_record = " (0-0)"
 
     label_text = f"{game['away_tricode']}{away_record} @ {game['home_tricode']}{home_record}"
-    
+
     status_text = game['status']
     if ':' in status_text:
         label_text += f" ({status_text})"
-        
+
+
     game_tabs.append(dcc.Tab(label=label_text, 
                              value=game['value'], 
-                             style={'padding': '1rem', 'fontWeight': '500'}, 
-                             selected_style={'padding': '1rem', 'fontWeight': 'bold', 'borderBottom': '3px solid #3B82F6'}))
+                            style={'padding': '1rem', 'fontWeight': '500', 'minWidth': '320px'}, 
+                            selected_style={'padding': '1rem', 'fontWeight': 'bold', 'borderBottom': '3px solid #3B82F6', 'minWidth': '320px'}))
 
 
 # --- 4. Define the App Layout ---
@@ -201,12 +202,18 @@ todays_date_str = datetime.now().strftime('%B %d, %Y')
 app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor': "#a4c1e8", 'padding': '2rem', 'minHeight': '100vh'}, children=[
     html.H1("Live NBA Scoreboard", style={'textAlign': 'center', 'color': '#111827'}),
     html.P(id='subtitle-date', style={'textAlign': 'center', 'color': '#4B5563', 'marginBottom': '2rem'}),
-    dcc.Tabs(
-        id="game-tabs",
-        value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None,
-        children=game_tabs,
-        style={'maxWidth': '1200px', 'margin': '0 auto'},
-        content_style={'display': 'flex', 'flexWrap': 'nowrap', 'overflowX': 'auto'}
+    # --- MODIFIED: Wrap Tabs in a scrollable Div ---
+    html.Div(
+        style={'maxWidth': '1200px', 'margin': '0 auto', 'borderBottom': '1px solid #d1d5db'},
+        children=[
+             dcc.Tabs(
+                id="game-tabs",
+                value=GAMES_TODAY[0]['value'] if GAMES_TODAY else None,
+                children=game_tabs,
+                style={'whiteSpace': 'nowrap'}, # Prevents wrapping
+                parent_style={'overflowX': 'auto'} # Allows parent div to scroll
+            )
+        ]
     ),
     
     # --- MODIFIED: Wrap plots in a styled card ---
