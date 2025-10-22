@@ -290,7 +290,16 @@ def update_live_charts(n, game_id):
         
         # --- MODIFIED: Use the new helper function to format the clock string ---
         simple_clock = format_clock_string(last_play['clock'])
-        time_display = f" {simple_clock} - Q{last_play['PERIOD']}"
+
+
+        # --- MODIFIED: Conditional period display for OT ---
+        period_num = last_play['PERIOD']
+        if period_num > 4:
+            period_display = f"OT{period_num - 4}"
+        else:
+            period_display = f"Q{period_num}"
+
+        time_display = f" {simple_clock} - {period_display}"
         score_text = f"FINAL: {away_team} {away_score} @ {home_score} {home_team}" if is_game_over else f"{away_team} {away_score} @ {home_score} {home_team} | Time: {time_display}"
 
         period_end_indices = df.groupby('PERIOD').tail(1).index.tolist()
