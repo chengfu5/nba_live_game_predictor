@@ -263,11 +263,14 @@ def update_live_charts(n, game_id):
         df['HOME_SCORE'] = pd.to_numeric(df['scoreHome']).ffill().fillna(0).astype(int)
         df['AWAY_SCORE'] = pd.to_numeric(df['scoreAway']).ffill().fillna(0).astype(int)
         df.rename(columns={'period': 'PERIOD'}, inplace=True)
+        df['PERIOD_FOR_MODEL'] = df['PERIOD'].apply(lambda p: min(p, 5))
         df['SCORE_MARGIN'] = df['HOME_SCORE'] - df['AWAY_SCORE']
         df['SECONDS_REMAINING'] = df.apply(lambda row: parse_time_remaining(row['clock'], row['PERIOD']), axis=1)
         df['SCORE_MARGIN_SQ'] = df['SCORE_MARGIN'] ** 2
         df['SECONDS_REMAINING_SQ'] = df['SECONDS_REMAINING'] ** 2
-        features = df[['SCORE_MARGIN', 'SECONDS_REMAINING', 'PERIOD', 'SCORE_MARGIN_SQ', 'SECONDS_REMAINING_SQ']]
+        features = df[['SCORE_MARGIN', 'SECONDS_REMAINING', 'PERIOD_FOR_MODEL', 'SCORE_MARGIN_SQ', 'SECONDS_REMAINING_SQ']].copy()
+        # Rename column for model compatibility
+        features.rename(columns={'PERIOD_FOR_MODEL': 'PERIOD'}, inplace=True)
         prob_history = model.predict_proba(features)[:, 1].tolist() if model else [0.5] * len(df)
         
         home_team = GAME_INFO_MAP.get(game_id, {}).get('home', 'Home')
@@ -276,6 +279,13 @@ def update_live_charts(n, game_id):
         last_play = df.iloc[-1]
         home_score, away_score = last_play['HOME_SCORE'], last_play['AWAY_SCORE']
         home_win_prob = prob_history[-1]
+
+        # --- MODIFIED: Apply confidence penalty for overtime plays ---
+        # Strategy 2: Apply a Confidence Penalty (Post-Processing)
+        if last_play['PERIOD'] > 4:
+            # Pull the prediction away from the extremes to reflect uncertainty.
+            home_win_prob = max(0.10, min(0.90, home_win_prob))
+            prob_history[-1] = home_win_prob # Update the history for the plot
         
         # --- NEW: Get commentary from the 'description' field ---
         commentary_text = last_play.get('description', '')
