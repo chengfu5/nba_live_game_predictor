@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import joblib
-from nba_api.stats.endpoints import scoreboardv2
+from nba_api.stats.endpoints import scoreboardv2, LeagueStandingsV3
 from datetime import datetime, timedelta
 import requests
 import re
@@ -48,23 +48,25 @@ def find_games_on_date(date_str, find_finished_games=False):
 
         final_df = games_df.copy()
 
-        # Defensively check for and merge standings data
-        standings_available = False
-        if len(data_frames) > 5:
-            east_standings = data_frames[4]
-            west_standings = data_frames[5]
-            # Check if the expected columns exist before proceeding
-            if 'WINS' in east_standings.columns and 'WINS' in west_standings.columns:
-                standings_available = True
-        
-        if standings_available:
-            all_standings = pd.concat([east_standings[['TEAM_ID', 'WINS', 'LOSSES']], west_standings[['TEAM_ID', 'WINS', 'LOSSES']]])
-            # Merge records for the home team
-            final_df = pd.merge(final_df, all_standings, left_on='HOME_TEAM_ID', right_on='TEAM_ID', how='left')
-            final_df.rename(columns={'WINS': 'HOME_WINS', 'LOSSES': 'HOME_LOSSES'}, inplace=True)
-            # Merge records for the visitor team
-            final_df = pd.merge(final_df, all_standings, left_on='VISITOR_TEAM_ID', right_on='TEAM_ID', how='left')
-            final_df.rename(columns={'WINS': 'AWAY_WINS', 'LOSSES': 'AWAY_LOSSES'}, inplace=True)
+        standings_df = pd.DataFrame() # Default to empty df
+        try:
+            # Note: LeagueStandingsV3 doesn't take a date, it gets current standings.
+            standings_data = LeagueStandingsV3(season='2025-26', season_type='Regular Season', timeout=30) 
+            standings_df = standings_data.get_data_frames()[0]
+            if not standings_df.empty and 'WINS' in standings_df.columns and 'LOSSES' in standings_df.columns:
+                 print(f"Standings data found via LeagueStandingsV3. Merging records.")
+                 # Select only necessary columns
+                 all_standings = standings_df[['TeamID', 'WINS', 'LOSSES']].rename(columns={'TeamID': 'TEAM_ID'})
+                 
+                 # Merge records
+                 final_df = pd.merge(final_df, all_standings, left_on='HOME_TEAM_ID', right_on='TEAM_ID', how='left')
+                 final_df.rename(columns={'WINS': 'HOME_WINS', 'LOSSES': 'HOME_LOSSES'}, inplace=True)
+                 final_df = pd.merge(final_df, all_standings, left_on='VISITOR_TEAM_ID', right_on='TEAM_ID', how='left')
+                 final_df.rename(columns={'WINS': 'AWAY_WINS', 'LOSSES': 'AWAY_LOSSES'}, inplace=True)
+            else:
+                 print(f"LeagueStandingsV3 data incomplete or missing WINS/LOSSES columns. Records will default to 0-0.")
+        except Exception as standings_error:
+             print(f"Could not fetch or process LeagueStandingsV3 data: {standings_error}. Records will default to 0-0.")
 
         # Fill missing records with 0 (for start of season) and convert to int
         for col in ['HOME_WINS', 'HOME_LOSSES', 'AWAY_WINS', 'AWAY_LOSSES']:
@@ -160,8 +162,8 @@ if not GAMES_TODAY:
     GAMES_TODAY = find_games_on_date('2024-04-10', find_finished_games=True)
 
 GAME_INFO_MAP = {game['value']: { # Note: 'value' is the game_id from the dropdown options
-    'home': game['label'].split(' @ ')[1].split(' (')[0],
-    'away': game['label'].split(' @ ')[0]
+    'home': game['home_tricode'],
+    'away': game['away_tricode']
 } for game in GAMES_TODAY if game['value'] != 'NONE'}
 
 # --- MODIFIED: Construct the tab labels with team records ---
