@@ -227,6 +227,9 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
         html.Div(id='commentary-display', style={'textAlign': 'center', 'fontSize': '1.1rem', 'color': '#4B5563', 'marginTop': '0.5rem', 'minHeight': '2rem'}),
 
         dcc.Graph(id='score-trend-chart'),
+                # --- NEW: Section for Recent Plays ---
+        html.H3("Recent Plays", style={'textAlign': 'center', 'fontSize': '1.5rem', 'fontWeight': 'bold', 'marginTop': '3rem', 'color': '#1F2937'}),
+        html.Div(id='recent-plays-display', style={'marginTop': '1rem', 'maxHeight': '390px', 'overflowY': 'auto', 'border': '1px solid #e5e7eb', 'borderRadius': '0.75rem', 'padding': '1rem'})
     ]),
     
     dcc.Interval(id='interval-component', interval=10*1000, n_intervals=0)
@@ -251,7 +254,8 @@ clientside_callback(
      Output('score-trend-chart', 'figure'),
      Output('win-prob-display', 'children'),
      Output('score-display', 'children'),
-     Output('commentary-display', 'children')],
+     Output('commentary-display', 'children'),
+     Output('recent-plays-display', 'children')],
     [Input('interval-component', 'n_intervals'),
      Input('game-tabs', 'value')]
 )
@@ -353,10 +357,26 @@ def update_live_charts(n, game_id):
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plot_font_color
         )
 
-        return win_prob_fig, score_trend_fig, win_prob_text, score_text, commentary_text
+        # --- NEW: Generate list of recent plays ---
+        recent_plays_list = []
+        # Get the last 10 rows, reverse them so newest is first
+        for _, play in df.tail(10).iloc[::-1].iterrows():
+            play_period_num = play['PERIOD']
+            play_period_display = f"OT{play_period_num - 4}" if play_period_num > 4 else f"Q{play_period_num}"
+            play_clock = format_clock_string(play['clock'])
+            play_score = f"{away_team} {play['AWAY_SCORE']} - {play['HOME_SCORE']} {home_team}"
+            play_desc = play.get('description', 'No description')
+            
+            recent_plays_list.append(html.Li(
+                f"[{play_period_display} {play_clock} | {play_score}] {play_desc}",
+                style={'padding': '0.5rem 0', 'borderBottom': '1px solid #f3f4f6'}
+            ))
+        play_by_play = html.Ul(recent_plays_list, style={'listStyle': 'none', 'padding': '0'})
+
+        return win_prob_fig, score_trend_fig, win_prob_text, score_text, commentary_text, play_by_play
     except Exception as e:
         error_fig = go.Figure().update_layout(title="Game not started")
-        return error_fig, error_fig, "Game not started", "Game not started", "Game not started"
+        return error_fig, error_fig, "Game not started", "Game not started", "Game not started", html.Ul()
 
 # --- 6. Run the App ---
 if __name__ == '__main__':
