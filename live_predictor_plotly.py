@@ -102,19 +102,50 @@ def format_clock_string(time_str):
     """Converts a time string ('PT05M32.0S' or '5:32') to a simple MM:SS format."""
     if pd.isna(time_str) or not isinstance(time_str, str):
         return "00:00"
-    
+    mins, secs, tenths = 0, 0, 0
     if time_str.startswith('PT'):
         try:
             mins_match = re.search(r'(\d+)M', time_str)
-            secs_match = re.search(r'(\d+)\.?\d*S', time_str)
+            # --- FIX: Correct regex to capture whole seconds *before* the optional decimal ---
+            secs_match = re.search(r'(\d+)(?:\.(\d{1,2}))?S', time_str) # Capture 1 or 2 digits after decimal
             mins = int(mins_match.group(1)) if mins_match else 0
-            secs = int(secs_match.group(1)) if secs_match else 0
-            # Format seconds with a leading zero if needed
-            return f"{mins}:{secs:02d}"
-        except (AttributeError, ValueError):
+            if secs_match:
+                try:
+                    secs = int(secs_match.group(1)) # Whole seconds
+                except (ValueError, TypeError, AttributeError):
+                    secs = 0
+                try:
+                    # Capture the *first* digit after the decimal point if it exists
+                    tenths = int(secs_match.group(2)[0]) if secs_match.group(2) else 0
+                except (ValueError, TypeError, AttributeError, IndexError):
+                     tenths = 0
+            else:
+                secs, tenths = 0, 0
+            # If under a minute display seconds and tenths
+            if mins == 0 and secs < 60 :
+                # Display 0.0 only if both secs and tenths are 0
+                if secs == 0 and tenths == 0:
+                    return "0.0"
+                else:
+                    return f"{secs}.{tenths}"
+            else:
+                return f"{mins}:{secs:02d}"
+        except Exception as e:
             return "00:00"
+
     elif ':' in time_str:
-        return time_str 
+        try:
+            m, s = map(int, time_str.split(':'))
+            if 0 <= m <= 99 and 0 <= s <= 59:
+                 # Check if it should be displayed as seconds only
+                 if m == 0 and s < 60:
+                      return f"{s}" # Display just seconds if under a minute
+                 else:
+                      return f"{m}:{s:02d}"
+            else:
+                return "00:00"
+        except ValueError:
+             return "00:00"
     else:
         return "00:00"
 
@@ -307,6 +338,14 @@ def update_live_charts(n, game_id):
             home_win_prob = 1.0 if home_score > away_score else 0.0
             prob_history[-1] = home_win_prob
             commentary_text = "Final"
+        
+        # --- NEW: Cap probability at 99.9% if game is NOT over ---
+        elif home_win_prob >= 0.999:
+             home_win_prob = 0.999
+             prob_history[-1] = 0.999 # Also cap the history for the plot
+        elif home_win_prob <= 0.001:
+             home_win_prob = 0.001
+             prob_history[-1] = 0.001
 
         favored_team, favored_prob = (home_team, home_win_prob) if home_win_prob >= 0.5 else (away_team, 1 - home_win_prob)
         win_prob_text = f"{favored_team} Win Probability: {favored_prob:.1%}"
