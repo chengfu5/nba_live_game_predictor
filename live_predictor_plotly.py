@@ -186,6 +186,82 @@ def find_games_for_dropdown():
         'away_losses': game.get('AWAY_LOSSES', 0),
     } for game in games]
 
+
+# --- MODIFIED: Simplified create_box_score_table function ---
+def create_box_score_table(players, team_tricode):
+    """Generates an HTML table component for a team's box score, separating starters and bench."""
+    cell_style = {'padding': '0.5rem 0.75rem', 'textAlign': 'center'}
+    player_cell_style = {'padding': '0.5rem 0.75rem', 'textAlign': 'left'} # Left-align player names
+
+    header = [html.Thead(html.Tr([
+        html.Th("Player", style={**player_cell_style, 'fontWeight': 'bold'}), # Use player style, make bold
+        html.Th("MIN", style=cell_style), html.Th("PTS", style=cell_style),
+        html.Th("REB", style=cell_style), html.Th("AST", style=cell_style),
+        html.Th("STL", style=cell_style), html.Th("BLK", style=cell_style),
+        html.Th("PF", style=cell_style),html.Th("FG", style=cell_style), 
+        html.Th("3PT", style=cell_style),html.Th("FT", style=cell_style), 
+        html.Th("+/-", style=cell_style)
+    ]))]
+
+    starters_body = []
+    bench_body = []
+
+    if players:
+        for player in players:
+            stats = player.get('statistics', {})
+            player_name = player.get('name', 'N/A')
+            is_starter = player.get('status') == 'Starter'
+
+            # Format minutes played, default to '0:00' if DNP
+            min_str = "0:00"
+            if stats.get('minutes', 'PT0M0.0S') != 'PT0M0.0S':
+                 raw_min_str = stats.get('minutes', 'PT0M0.0S').replace('PT', '').replace('M', ':').split('.')[0].replace('S', '')
+                 if ':' not in raw_min_str:
+                     min_str = f"0:{int(raw_min_str):02d}" if raw_min_str.isdigit() else "0:00"
+                 elif raw_min_str.endswith(':'):
+                     min_str = raw_min_str + '00'
+                 elif ':' in raw_min_str:
+                     parts = raw_min_str.split(':')
+                     if len(parts) == 2 and parts[1].isdigit() and len(parts[1]) == 1:
+                         min_str = f"{parts[0]}:{int(parts[1]):02d}"
+                     elif len(parts) == 2 and parts[1].isdigit(): # Handle MM:SS correctly
+                         min_str = raw_min_str
+                     else:
+                         min_str = "0:00" # Fallback for unexpected format
+
+
+            fg_str = f"{stats.get('fieldGoalsMade', 0)}-{stats.get('fieldGoalsAttempted', 0)}"
+            tpt_str = f"{stats.get('threePointersMade', 0)}-{stats.get('threePointersAttempted', 0)}"
+            ft_str = f"{stats.get('freeThrowsMade', 0)}-{stats.get('freeThrowsAttempted', 0)}"
+
+            row = html.Tr([
+                html.Td(player_name, style={**player_cell_style, 'fontWeight': '500' if is_starter else 'normal'}),
+                html.Td(min_str, style=cell_style),
+                html.Td(stats.get('points', 0), style=cell_style),
+                html.Td(stats.get('reboundsTotal', 0), style=cell_style),
+                html.Td(stats.get('assists', 0), style=cell_style),
+                html.Td(stats.get('steals', 0), style=cell_style),
+                html.Td(stats.get('blocks', 0), style=cell_style),
+                html.Td(stats.get('foulsPersonal', 0), style=cell_style),
+                html.Td(fg_str, style=cell_style),
+                html.Td(tpt_str, style=cell_style),
+                html.Td(ft_str, style=cell_style),
+                html.Td(stats.get('plusMinusPoints', 0), style=cell_style)
+            ])
+
+            if is_starter:
+                starters_body.append(row)
+            else:
+                bench_body.append(row)
+
+    # Combine starters and bench, add a separator if bench players exist
+    full_body = starters_body
+    if bench_body:
+        separator = html.Tr([html.Td(html.Hr(), colSpan=11)])
+        full_body += [separator] + bench_body
+
+    return html.Table(header + [html.Tbody(full_body)], className='u-full-width', style={'fontSize': '0.9rem', 'marginTop': '1rem'})
+
 # --- 3. Initial Data Fetch for Layout ---
 GAMES_TODAY = find_games_for_dropdown() # This now uses the new logic
 if not GAMES_TODAY:
@@ -258,9 +334,16 @@ app.layout = html.Div(style={'fontFamily': 'Inter, sans-serif', 'backgroundColor
         html.Div(id='commentary-display', style={'textAlign': 'center', 'fontSize': '1.1rem', 'color': '#4B5563', 'marginTop': '0.5rem', 'minHeight': '2rem'}),
 
         dcc.Graph(id='score-trend-chart'),
-                # --- NEW: Section for Recent Plays ---
+        # --- NEW: Section for Recent Plays ---
         html.H3("Recent Plays", style={'textAlign': 'center', 'fontSize': '1.5rem', 'fontWeight': 'bold', 'marginTop': '3rem', 'color': '#1F2937'}),
-        html.Div(id='recent-plays-display', style={'marginTop': '1rem', 'maxHeight': '390px', 'overflowY': 'auto', 'border': '1px solid #e5e7eb', 'borderRadius': '0.75rem', 'padding': '1rem'})
+        html.Div(id='recent-plays-display', style={'marginTop': '1rem', 'maxHeight': '390px', 'overflowY': 'auto', 'border': '1px solid #e5e7eb', 'borderRadius': '0.75rem', 'padding': '1rem'}),
+
+        # Box Score Section
+        html.Div(style={'marginTop': '3rem'}, children=[
+             html.H3("Box Score", style={'textAlign': 'center', 'fontSize': '1.5rem', 'fontWeight': 'bold', 'marginBottom': '1rem', 'color': '#1F2937'}),
+             html.Div(id='away-box-score-container', style={'marginBottom': '2rem'}),
+             html.Div(id='home-box-score-container')
+        ])
     ]),
     
     dcc.Interval(id='interval-component', interval=10*1000, n_intervals=0)
@@ -286,7 +369,9 @@ clientside_callback(
      Output('win-prob-display', 'children'),
      Output('score-display', 'children'),
      Output('commentary-display', 'children'),
-     Output('recent-plays-display', 'children')],
+     Output('recent-plays-display', 'children'),
+     Output('away-box-score-container', 'children'),
+     Output('home-box-score-container', 'children')],
     [Input('interval-component', 'n_intervals'),
      Input('game-tabs', 'value')]
 )
@@ -299,6 +384,10 @@ def update_live_charts(n, game_id):
         live_url = f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game_id}.json"
         response = requests.get(live_url, timeout=10).json()
         df = pd.DataFrame(response.get('game', {}).get('actions', []))
+
+        box_url = f"https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{game_id}.json"
+        box_response = requests.get(box_url, timeout=10).json()
+        box_game_data = box_response.get('game', {})
 
         if df.empty:
             empty_fig = go.Figure().update_layout(title="Waiting for game to start or for first play to be logged...", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
@@ -412,10 +501,20 @@ def update_live_charts(n, game_id):
             ))
         play_by_play = html.Ul(recent_plays_list, style={'listStyle': 'none', 'padding': '0'})
 
-        return win_prob_fig, score_trend_fig, win_prob_text, score_text, commentary_text, play_by_play
+        # Generate Box Score Tables
+        away_players = box_game_data.get('awayTeam', {}).get('players', [])
+        home_players = box_game_data.get('homeTeam', {}).get('players', [])
+        away_box_table = create_box_score_table(away_players, away_team)
+        home_box_table = create_box_score_table(home_players, home_team)
+        away_box_title = html.H4(f"{away_team} Box Score", style={'textAlign': 'left', 'fontWeight': '600'})
+        home_box_title = html.H4(f"{home_team} Box Score", style={'textAlign': 'left', 'fontWeight': '600', 'marginTop': '2rem'})
+        away_box = html.Div([away_box_title, away_box_table])
+        home_box = html.Div([home_box_title, home_box_table])
+
+        return win_prob_fig, score_trend_fig, win_prob_text, score_text, commentary_text, play_by_play, away_box, home_box
     except Exception as e:
         error_fig = go.Figure().update_layout(title="Game not started")
-        return error_fig, error_fig, "Game not started", "Game not started", "Game not started", html.Ul()
+        return error_fig, error_fig, "Game not started", "Game not started", "Game not started", html.Ul(), html.Div(), html.Div()
 
 # --- 6. Run the App ---
 if __name__ == '__main__':
