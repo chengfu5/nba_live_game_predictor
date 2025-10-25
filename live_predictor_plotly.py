@@ -191,10 +191,10 @@ def find_games_for_dropdown():
 def create_box_score_table(players, team_tricode):
     """Generates an HTML table component for a team's box score, separating starters and bench."""
     cell_style = {'padding': '0.5rem 0.75rem', 'textAlign': 'center'}
-    player_cell_style = {'padding': '0.5rem 0.75rem', 'textAlign': 'left'} # Left-align player names
+    player_cell_style = {'padding': '0.5rem 0.75rem', 'textAlign': 'left'} 
 
     header = [html.Thead(html.Tr([
-        html.Th("Player", style={**player_cell_style, 'fontWeight': 'bold'}), # Use player style, make bold
+        html.Th("Player", style={**player_cell_style, 'fontWeight': 'bold'}), 
         html.Th("MIN", style=cell_style), html.Th("PTS", style=cell_style),
         html.Th("REB", style=cell_style), html.Th("AST", style=cell_style),
         html.Th("STL", style=cell_style), html.Th("BLK", style=cell_style),
@@ -212,7 +212,6 @@ def create_box_score_table(players, team_tricode):
             player_name = player.get('name', 'N/A')
             is_starter = player.get('status') == 'Starter'
 
-            # Format minutes played, default to '0:00' if DNP
             min_str = "0:00"
             if stats.get('minutes', 'PT0M0.0S') != 'PT0M0.0S':
                  raw_min_str = stats.get('minutes', 'PT0M0.0S').replace('PT', '').replace('M', ':').split('.')[0].replace('S', '')
@@ -227,7 +226,7 @@ def create_box_score_table(players, team_tricode):
                      elif len(parts) == 2 and parts[1].isdigit(): # Handle MM:SS correctly
                          min_str = raw_min_str
                      else:
-                         min_str = "0:00" # Fallback for unexpected format
+                         min_str = "0:00" 
 
 
             fg_str = f"{stats.get('fieldGoalsMade', 0)}-{stats.get('fieldGoalsAttempted', 0)}"
